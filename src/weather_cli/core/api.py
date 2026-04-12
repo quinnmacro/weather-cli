@@ -4,7 +4,7 @@ Weather API clients for multiple data sources
 
 import difflib
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -192,6 +192,127 @@ class OpenMeteoClient(BaseAPIClient):
             return f"{city.capitalize()}: {emoji}  🌡️{temp}°C 🌬️{data.get('wind_speed', 0)}km/h"
         else:
             return f"{emoji} {temp}°C"
+
+    def get_forecast_batch(
+        self,
+        points: List[Tuple[float, float]],
+        days: int = 3,
+        timezone: str = "auto"
+    ) -> List[Dict[str, Any]]:
+        """Get forecast for multiple coordinates using batch API
+
+        Open-Meteo supports batch queries by passing multiple coordinates:
+        latitude=39.9,34.3&longitude=116.4,108.9
+
+        Returns a list of forecasts in the same order as input points.
+        """
+        if not points:
+            return []
+
+        if days < 1 or days > 7:
+            raise ValueError("Days must be between 1 and 7 for route forecast")
+
+        # Build batch coordinates
+        lats = ",".join(str(p[0]) for p in points)
+        lons = ",".join(str(p[1]) for p in points)
+
+        params = {
+            "latitude": lats,
+            "longitude": lons,
+            "daily": "weather_code,temperature_2m_max,temperature_2m_min,"
+                    "precipitation_sum,wind_speed_10m_max,uv_index_max",
+            "timezone": timezone,
+            "forecast_days": days,
+        }
+
+        response = self.session.get(self.BASE_URL, params=params, timeout=self.timeout)
+        response.raise_for_status()
+
+        # Open-Meteo returns results differently for batch queries
+        # It may return a single object with arrays, or an array of results
+        data = response.json()
+
+        # Handle single result or array of results
+        results = data if isinstance(data, list) else [data]
+
+        forecasts = []
+        days_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+        for result in results:
+            daily = result.get("daily", {})
+            dates = daily.get("time", [])
+            point_forecast = []
+
+            for i, date_str in enumerate(dates):
+                date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                point_forecast.append({
+                    "date": date_str,
+                    "day": days_names[date_obj.weekday()],
+                    "temp_max": daily.get("temperature_2m_max", [None])[i],
+                    "temp_min": daily.get("temperature_2m_min", [None])[i],
+                    "precipitation": daily.get("precipitation_sum", [None])[i],
+                    "wind_speed": daily.get("wind_speed_10m_max", [None])[i],
+                    "uv_index": daily.get("uv_index_max", [None])[i],
+                    "weather_code": daily.get("weather_code", [0])[i],
+                })
+
+            forecasts.append(point_forecast)
+
+        return forecasts
+
+    def get_hourly_for_route(
+        self,
+        points: List[Tuple[float, float]],
+        hours: int = 72,
+        timezone: str = "auto"
+    ) -> List[List[Dict[str, Any]]]:
+        """Get hourly forecast for multiple coordinates
+
+        Useful for route planning with specific arrival times.
+        Returns hourly data for up to 72 hours.
+        """
+        if not points:
+            return []
+
+        if hours < 1 or hours > 168:
+            raise ValueError("Hours must be between 1 and 168")
+
+        lats = ",".join(str(p[0]) for p in points)
+        lons = ",".join(str(p[1]) for p in points)
+
+        params = {
+            "latitude": lats,
+            "longitude": lons,
+            "hourly": "temperature_2m,precipitation,weather_code,wind_speed_10m",
+            "timezone": timezone,
+            "forecast_days": min(7, (hours // 24) + 1),
+        }
+
+        response = self.session.get(self.BASE_URL, params=params, timeout=self.timeout)
+        response.raise_for_status()
+
+        data = response.json()
+        results = data if isinstance(data, list) else [data]
+
+        forecasts = []
+
+        for result in results:
+            hourly = result.get("hourly", {})
+            times = hourly.get("time", [])
+            point_forecast = []
+
+            for i, time_str in enumerate(times[:hours]):
+                point_forecast.append({
+                    "datetime": time_str,
+                    "temp": hourly.get("temperature_2m", [None])[i],
+                    "precipitation": hourly.get("precipitation", [None])[i],
+                    "weather_code": hourly.get("weather_code", [0])[i],
+                    "wind_speed": hourly.get("wind_speed_10m", [None])[i],
+                })
+
+            forecasts.append(point_forecast)
+
+        return forecasts
 
 
 class WindyClient(BaseAPIClient):

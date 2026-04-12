@@ -25,6 +25,9 @@ dependencies = [
     "rich>=13.0.0",
     "click>=8.1.0",
     "python-dotenv>=1.0.0",
+    "gpxpy>=1.6.0",
+    "fastkml>=1.0.0",
+    "geopy>=2.4.0",
 ]
 
 [project.optional-dependencies]

@@ -1,6 +1,35 @@
-# Weather CLI
+# Weather CLI Pro
 
-A command-line weather application with real data sources and advanced meteorological analysis.
+A professional command-line weather application with real data sources and advanced meteorological analysis.
+
+## Features
+
+- **Multiple Data Sources**: Open-Meteo (free, no API key) and Windy API
+- **Current & Forecast**: Real-time weather and multi-day forecasts
+- **Historical Data**: Archive weather data queries
+- **Advanced Meteorology**: Boundary layer analysis, multi-model comparison
+- **JSON Output**: Machine-readable output for scripting
+- **One-line Format**: Status bar friendly output (like wttr.in)
+
+## Project Structure
+
+```
+weather-cli/
+├── src/weather_cli/
+│   ├── __init__.py
+│   ├── main.py           # CLI entry point
+│   ├── advanced.py       # Advanced meteorology commands
+│   ├── config/
+│   │   └── settings.py   # Configuration & weather codes
+│   ├── core/
+│   │   └── api.py        # API clients (OpenMeteo, Windy)
+│   └── ui/
+│       └── display.py    # Rich terminal display
+├── tests/
+│   └── test_api.py
+├── pyproject.toml
+└── README.md
+```
 
 ## Data Sources
 
@@ -29,26 +58,27 @@ weather forecast london --days 5
 # Historical weather
 weather history tokyo --start 2026-01-01 --end 2026-01-07
 
+# One-line output (for status bars)
+weather oneline beijing
+
+# JSON output
+weather --json current beijing
+
 # Windy forecast (requires API key)
 export WINDY_API_KEY=your_key
 weather windy beijing --hours 48
-```
 
----
+# List supported cities
+weather cities
+```
 
 ## Advanced Analysis (for Meteorologists)
 
 ```bash
-weather-advanced sounding beijing --model gfs
-weather-advanced pbl shanghai
-weather-advanced compare tokyo --models gfs,ecmwf,icon
-weather-advanced synoptic london --level 500
-weather-advanced severe guangzhou
-weather-advanced models
+weather-advanced pbl shanghai          # Boundary layer analysis
+weather-advanced compare tokyo         # Multi-model comparison
+weather-advanced models                # List NWP models
 ```
-
-### Atmospheric Sounding
-Multi-level temperature, humidity, wind, and geopotential height profile.
 
 ### Boundary Layer Analysis
 - CAPE (Convective Available Potential Energy)
@@ -60,17 +90,34 @@ Multi-level temperature, humidity, wind, and geopotential height profile.
 ### Multi-Model Comparison
 Compare GFS, ECMWF IFS, ICON forecasts for ensemble analysis.
 
-### Synoptic Pattern
-Geopotential height, temperature, wind at standard pressure levels (1000-300 hPa).
+## Configuration
 
-### Severe Weather Assessment
-Convective potential and severe weather risk analysis.
+Config file: `~/.config/weather-cli/.env`
 
----
+```bash
+WEATHER_DEFAULT_CITY=beijing
+WEATHER_UNITS=metric
+WEATHER_FORECAST_DAYS=3
+WINDY_API_KEY=your_key
+```
 
 ## Supported Cities
 
 Beijing, Shanghai, Shenzhen, Guangzhou, Chengdu, Xi'an, Wuhan, Nanjing, Hangzhou, Chongqing, Kunming, Shangri-La, New York, London, Tokyo, Paris, Sydney
+
+## Development
+
+```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Format code
+black src tests
+ruff check src tests
+```
 
 ## License
 

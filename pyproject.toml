@@ -1,36 +1,76 @@
 [project]
-name = "weather-cli"
-version = "0.1.0"
-description = "A simple command-line weather application"
-authors = [
-    {name = "Test User", email = "test@example.com"}
+name = "weather-cli-pro"
+version = "0.2.0"
+description = "Professional weather CLI with real data sources and advanced meteorological analysis"
+authors = [{ name = "quinnmacro", email = "quinn@example.com" }]
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+keywords = ["weather", "cli", "meteorology", "forecast", "open-meteo", "windy"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
 ]
 dependencies = [
     "requests>=2.31.0",
     "rich>=13.0.0",
-    "click>=8.1.0"
+    "click>=8.1.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
 ]
 
 [project.scripts]
 weather = "weather_cli.main:main"
 weather-advanced = "weather_cli.advanced:main"
 
+[project.urls]
+Homepage = "https://github.com/quinnmacro/weather-cli"
+Repository = "https://github.com/quinnmacro/weather-cli"
+Documentation = "https://github.com/quinnmacro/weather-cli#readme"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.black]
-line-length = 88
-target-version = ['py310']
+[tool.hatch.build.targets.wheel]
+packages = ["src/weather_cli"]
 
 [tool.ruff]
 line-length = 88
 target-version = "py310"
-select = ["E", "F", "I", "B", "W", "C", "N"]
-ignore = ["E501", "N802", "N803", "N806"]
+select = ["E", "F", "I", "B", "W"]
 
 [tool.mypy]
 python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+addopts = "-v --tb=short"
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+]

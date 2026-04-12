@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Compare Routes{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <h1 class="text-2xl font-bold">📊 Compare Routes</h1>
+    <p class="text-gray-600">Upload multiple routes to compare weather conditions side by side</p>
+
+    <!-- Upload Multiple Routes -->
+    <div class="bg-white rounded-xl shadow-md p-6">
+        <h2 class="text-lg font-semibold mb-4">Upload Routes to Compare</h2>
+
+        <div id="routeList" class="space-y-3 mb-4">
+            <!-- Routes will be added here -->
+        </div>
+
+        <div class="flex items-center space-x-4">
+            <label class="flex-1">
+                <input type="file" accept=".gpx,.kml" class="hidden" id="fileInput" onchange="addRoute(event)">
+                <button onclick="document.getElementById('fileInput').click()"
+                        class="border-2 border-dashed border-gray-300 rounded-lg p-4 w-full text-center cursor-pointer hover:border-blue-500">
+                    + Add Route
+                </button>
+            </label>
+        </div>
+
+        <div class="mt-4 flex items-center space-x-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Speed (km/h)</label>
+                <input type="number" id="speedInput" value="15" min="1" max="50"
+                       class="mt-1 block w-24 rounded-md border-gray-300">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700">Departure Time</label>
+                <input type="datetime-local" id="departureInput"
+                       class="mt-1 block rounded-md border-gray-300">
+            </div>
+            <button onclick="compareRoutes()"
+                    id="compareBtn"
+                    disabled
+                    class="mt-6 bg-purple-500 text-white px-6 py-2 rounded-lg hover:bg-purple-600 disabled:bg-gray-300">
+                Compare Routes
+            </button>
+        </div>
+    </div>
+
+    <!-- Comparison Results -->
+    <div id="comparisonResults" class="hidden space-y-6">
+        <!-- Recommendation -->
+        <div class="bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl shadow-md p-6 text-white">
+            <h3 class="text-lg font-semibold mb-2">💡 Recommendation</h3>
+            <p id="recommendationText" class="text-xl">--</p>
+        </div>
+
+        <!-- Comparison Cards -->
+        <div id="routeCards" class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Cards will be inserted here -->
+        </div>
+
+        <!-- Comparison Table -->
+        <div class="bg-white rounded-xl shadow-md p-4">
+            <h3 class="font-semibold mb-4">Detailed Comparison</h3>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead>
+                        <tr>
+                            <th class="px-4 py-2 text-left text-sm font-medium text-gray-500">Metric</th>
+                            <th id="route1Header" class="px-4 py-2 text-center text-sm font-medium text-gray-500">Route 1</th>
+                            <th id="route2Header" class="px-4 py-2 text-center text-sm font-medium text-gray-500">Route 2</th>
+                        </tr>
+                    </thead>
+                    <tbody id="comparisonTable" class="divide-y divide-gray-200">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loadingIndicator" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-xl p-8 text-center">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <p class="text-gray-600">Comparing routes...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let routes = [];
+
+    function addRoute(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        document.getElementById('loadingIndicator').classList.remove('hidden');
+
+        fetch('/api/routes/upload', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            routes.push(data);
+            updateRouteList();
+            document.getElementById('compareBtn').disabled = routes.length < 2;
+        })
+        .catch(err => alert('Upload failed: ' + err.message))
+        .finally(() => {
+            document.getElementById('loadingIndicator').classList.add('hidden');
+            event.target.value = '';
+        });
+    }
+
+    function updateRouteList() {
+        const list = document.getElementById('routeList');
+        list.innerHTML = routes.map((r, i) => `
+            <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                <div>
+                    <span class="font-medium">${r.name}</span>
+                    <span class="text-sm text-gray-500 ml-2">${r.total_distance_km.toFixed(1)} km</span>
+                </div>
+                <button onclick="removeRoute(${i})" class="text-red-500 hover:text-red-700">✕</button>
+            </div>
+        `).join('');
+    }
+
+    function removeRoute(index) {
+        routes.splice(index, 1);
+        updateRouteList();
+        document.getElementById('compareBtn').disabled = routes.length < 2;
+    }
+
+    function compareRoutes() {
+        const speed = document.getElementById('speedInput').value;
+        let departure = document.getElementById('departureInput').value;
+
+        if (!departure) {
+            departure = new Date().toISOString();
+        }
+
+        document.getElementById('loadingIndicator').classList.remove('hidden');
+
+        fetch('/api/weather/compare', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                route_ids: routes.map(r => r.route_id),
+                departure_time: departure,
+                speed_kmh: parseFloat(speed)
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('comparisonResults').classList.remove('hidden');
+            document.getElementById('recommendationText').textContent = data.recommendation;
+
+            // Update headers
+            if (data.routes.length >= 1) {
+                document.getElementById('route1Header').textContent = data.routes[0].route_name;
+            }
+            if (data.routes.length >= 2) {
+                document.getElementById('route2Header').textContent = data.routes[1].route_name;
+            }
+
+            // Build comparison table
+            const metrics = ['distance_km', 'elevation_gain_m', 'avg_temp', 'total_precip', 'max_wind', 'score'];
+            const labels = ['Distance (km)', 'Elevation Gain (m)', 'Avg Temp (°C)', 'Precipitation (mm)', 'Max Wind (km/h)', 'Score'];
+
+            const tbody = document.getElementById('comparisonTable');
+            tbody.innerHTML = metrics.map((metric, i) => `
+                <tr>
+                    <td class="px-4 py-2 font-medium">${labels[i]}</td>
+                    ${data.routes.map(r => `
+                        <td class="px-4 py-2 text-center ${metric === 'score' ? getScoreClass(r[metric]) : ''}">
+                            ${typeof r[metric] === 'number' ? r[metric].toFixed(1) : r[metric]}
+                        </td>
+                    `).join('')}
+                </tr>
+            `).join('');
+
+            // Build route cards
+            const cards = document.getElementById('routeCards');
+            cards.innerHTML = data.routes.map(r => `
+                <div class="bg-white rounded-xl shadow-md p-4 ${r.score === Math.max(...data.routes.map(x => x.score)) ? 'ring-2 ring-green-500' : ''}">
+                    <h4 class="font-semibold mb-2">${r.route_name}</h4>
+                    <div class="text-3xl font-bold ${getScoreClass(r.score)} mb-2">${r.score}</div>
+                    <p class="text-sm text-gray-500 mb-3">${r.best_for}</p>
+                    <div class="text-sm space-y-1">
+                        <div class="flex justify-between">
+                            <span>Distance:</span>
+                            <span>${r.distance_km.toFixed(1)} km</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Elevation:</span>
+                            <span>${r.elevation_gain_m.toFixed(0)} m</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Avg Temp:</span>
+                            <span>${r.avg_temp.toFixed(1)}°C</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Precipitation:</span>
+                            <span>${r.total_precip.toFixed(1)} mm</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        })
+        .catch(err => alert('Comparison failed: ' + err.message))
+        .finally(() => {
+            document.getElementById('loadingIndicator').classList.add('hidden');
+        });
+    }
+
+    function getScoreClass(score) {
+        if (score >= 80) return 'text-green-500';
+        if (score >= 60) return 'text-blue-500';
+        if (score >= 40) return 'text-yellow-500';
+        return 'text-red-500';
+    }
+
+    // Set default departure time
+    document.getElementById('departureInput').value = new Date().toISOString().slice(0, 16);
+</script>
+{% endblock %}

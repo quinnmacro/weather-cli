@@ -97,24 +97,39 @@ CITIES = {
 
 # WMO weather codes to descriptions
 WEATHER_CODES = {
+    # Clear and cloudy
     0: ("Clear sky", "☀️", "晴"),
     1: ("Mainly clear", "🌤️", "大部晴朗"),
     2: ("Partly cloudy", "⛅", "多云"),
     3: ("Overcast", "☁️", "阴天"),
+    # Fog
     45: ("Fog", "🌫️", "雾"),
     48: ("Depositing rime fog", "🌫️", "雾凇"),
+    # Drizzle
     51: ("Light drizzle", "🌧️", "微毛毛雨"),
     53: ("Moderate drizzle", "🌧️", "毛毛雨"),
     55: ("Dense drizzle", "🌧️", "大毛毛雨"),
+    56: ("Light freezing drizzle", "🌨️", "轻微冻毛毛雨"),
+    57: ("Dense freezing drizzle", "🌨️", "浓冻毛毛雨"),
+    # Rain
     61: ("Slight rain", "🌧️", "小雨"),
     63: ("Moderate rain", "🌧️", "中雨"),
     65: ("Heavy rain", "🌧️", "大雨"),
+    66: ("Light freezing rain", "🌨️", "轻微冻雨"),
+    67: ("Heavy freezing rain", "🌨️", "大冻雨"),
+    # Snow
     71: ("Slight snow", "🌨️", "小雪"),
     73: ("Moderate snow", "🌨️", "中雪"),
     75: ("Heavy snow", "❄️", "大雪"),
+    77: ("Snow grains", "🌨️", "雪粒"),
+    # Rain showers
     80: ("Slight rain showers", "🌦️", "小阵雨"),
     81: ("Moderate rain showers", "🌦️", "阵雨"),
     82: ("Violent rain showers", "⛈️", "大阵雨"),
+    # Snow showers
+    85: ("Slight snow showers", "🌨️", "小阵雪"),
+    86: ("Heavy snow showers", "❄️", "大阵雪"),
+    # Thunderstorm
     95: ("Thunderstorm", "⛈️", "雷暴"),
     96: ("Thunderstorm with slight hail", "⛈️", "雷暴伴小冰雹"),
     99: ("Thunderstorm with heavy hail", "⛈️", "雷暴伴大冰雹"),

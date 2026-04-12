@@ -377,6 +377,13 @@ def route(
             _, eta_time = etas[i]
             # Find the forecast day matching ETA
             day_forecast = _get_forecast_for_date(forecast, eta_time.date())
+            # If ETA is beyond forecast range, use the last available day
+            if not day_forecast and forecast:
+                day_forecast = forecast[-1].copy()
+            # Override date with ETA date for display
+            if day_forecast:
+                day_forecast = day_forecast.copy()
+                day_forecast["date"] = eta_time.strftime("%Y-%m-%d")
         else:
             day_forecast = forecast[0] if forecast else {}
 
@@ -415,8 +422,9 @@ def route(
 
 def _get_forecast_for_date(forecast: list, target_date) -> dict:
     """Get forecast for a specific date"""
+    target_str = target_date.isoformat() if hasattr(target_date, 'isoformat') else str(target_date)
     for day in forecast:
-        if day.get("date") == target_date.isoformat():
+        if day.get("date") == target_str:
             return day
     return forecast[0] if forecast else {}
 

@@ -2,6 +2,7 @@
 Route file parsing and waypoint extraction
 """
 
+import requests
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -26,6 +27,119 @@ class RouteInfo:
     name: str
     total_distance_km: float
     waypoints: List[Waypoint] = field(default_factory=list)
+
+
+# OSRM profile mapping for different activities
+OSRM_PROFILES = {
+    "cycling": "bike",      # Uses cycling routes
+    "hiking": "foot",       # Uses walking/hiking paths
+    "running": "foot",      # Uses walking paths
+    "driving": "car",       # Uses driving roads
+}
+
+
+def get_osrm_route(
+    start_lon: float, start_lat: float,
+    end_lon: float, end_lat: float,
+    profile: str = "foot"
+) -> Optional[List[Tuple[float, float]]]:
+    """Get route from OSRM (Open Source Routing Machine).
+
+    Args:
+        start_lon, start_lat: Starting coordinates
+        end_lon, end_lat: Ending coordinates
+        profile: Routing profile (foot, bike, car)
+
+    Returns:
+        List of (lon, lat) coordinates along the route, or None if failed
+    """
+    # OSRM demo server (free, no API key needed)
+    # Use public routing server
+    base_url = f"https://router.project-osrm.org/route/v1/{profile}"
+
+    # Format: longitude,latitude
+    coords = f"{start_lon},{start_lat};{end_lon},{end_lat}"
+
+    url = f"{base_url}/{coords}"
+    params = {
+        "overview": "full",
+        "geometries": "geojson"
+    }
+
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        if data.get("code") != "Ok":
+            return None
+
+        # Extract coordinates from GeoJSON
+        coordinates = data["routes"][0]["geometry"]["coordinates"]
+        return [(lon, lat) for lon, lat in coordinates]
+
+    except Exception as e:
+        print(f"OSRM routing failed: {e}")
+        return None
+
+
+def enhance_route_with_osrm(
+    waypoints: List[Waypoint],
+    activity_type: str = "hiking",
+    min_direct_distance_km: float = 0.5,
+    max_direct_distance_km: float = 50.0
+) -> List[Waypoint]:
+    """Enhance route by getting actual paths between waypoints using OSRM.
+
+    Only routes between points that are far apart (to avoid too many API calls).
+
+    Args:
+        waypoints: Original waypoints
+        activity_type: Type of activity (cycling, hiking, running)
+        min_direct_distance_km: Only route if direct distance > this value (default 0.5km)
+        max_direct_distance_km: Maximum distance to route (default 50km)
+
+    Returns:
+        Enhanced waypoints with actual paths
+    """
+    if len(waypoints) < 2:
+        return waypoints
+
+    profile = OSRM_PROFILES.get(activity_type, "foot")
+    enhanced = []
+
+    for i, wp in enumerate(waypoints):
+        enhanced.append(wp)
+
+        if i < len(waypoints) - 1:
+            next_wp = waypoints[i + 1]
+
+            # Calculate direct distance
+            direct_dist = geodesic(
+                (wp.lat, wp.lon),
+                (next_wp.lat, next_wp.lon)
+            ).kilometers
+
+            # Only use OSRM if points are far apart (and not too far for reasonable routing)
+            if min_direct_distance_km < direct_dist <= max_direct_distance_km:
+                route_coords = get_osrm_route(
+                    wp.lon, wp.lat,
+                    next_wp.lon, next_wp.lat,
+                    profile
+                )
+
+                if route_coords and len(route_coords) > 2:
+                    # Add intermediate points from OSRM route (skip first and last)
+                    for lon, lat in route_coords[1:-1]:
+                        enhanced.append(Waypoint(
+                            lat=lat,
+                            lon=lon,
+                            elevation=None,
+                            name=""
+                        ))
+
+    # Recalculate distances
+    return _calculate_distances(enhanced)
 
 
 def parse_gpx(file_path: Path) -> RouteInfo:
@@ -94,41 +208,54 @@ def parse_kml(file_path: Path) -> RouteInfo:
     except Exception as e:
         raise ValueError(f"Failed to read KML file: {e}")
 
-    try:
-        kml_obj = __import__("fastkml").kml.KML()
-        kml_obj.from_string(doc)
-    except Exception as e:
-        raise ValueError(f"Failed to parse KML file: {e}")
-
     all_points: List[Waypoint] = []
     route_name = file_path.stem
 
-    def process_feature(feature):
-        nonlocal route_name, all_points
+    # Use xml.etree for KML parsing (more reliable than fastkml for simple KML)
+    import xml.etree.ElementTree as ET
 
-        if hasattr(feature, "name") and feature.name:
-            route_name = feature.name
+    # Remove namespace for easier parsing
+    doc_clean = doc
+    for ns in ['xmlns="http://www.opengis.net/kml/2.2"', "xmlns='http://www.opengis.net/kml/2.2'"]:
+        doc_clean = doc_clean.replace(ns, '')
 
-        if hasattr(feature, "geometry"):
-            geom = feature.geometry
-            if geom is not None:
-                coords = _extract_coords_from_geometry(geom)
-                for lon, lat in coords:
+    try:
+        root = ET.fromstring(doc_clean)
+    except ET.ParseError as e:
+        raise ValueError(f"Failed to parse KML XML: {e}")
+
+    # Find document name
+    name_elem = root.find('.//name')
+    if name_elem is not None and name_elem.text:
+        route_name = name_elem.text
+
+    # Find LineString coordinates
+    for coords_elem in root.findall('.//coordinates'):
+        if coords_elem.text:
+            coords_text = coords_elem.text.strip()
+            for coord_pair in coords_text.split():
+                parts = coord_pair.split(',')
+                if len(parts) >= 2:
+                    try:
+                        lon, lat = float(parts[0]), float(parts[1])
+                        elev = float(parts[2]) if len(parts) > 2 else None
+                        all_points.append(Waypoint(lat=lat, lon=lon, elevation=elev))
+                    except ValueError:
+                        continue
+
+    # Also check for Point elements (waypoints)
+    for point in root.findall('.//Point/coordinates'):
+        if point.text:
+            parts = point.text.strip().split(',')
+            if len(parts) >= 2:
+                try:
+                    lon, lat = float(parts[0]), float(parts[1])
                     all_points.append(Waypoint(lat=lat, lon=lon))
-
-        # Process nested features
-        if hasattr(feature, "features"):
-            for f in feature.features:
-                process_feature(f)
-
-        if hasattr(feature, "document"):
-            process_feature(feature.document)
-
-    for feature in kml_obj.features:
-        process_feature(feature)
+                except ValueError:
+                    continue
 
     if not all_points:
-        raise ValueError("No coordinates found in KML file")
+        raise ValueError(f"No coordinates found in KML file")
 
     waypoints = _calculate_distances(all_points)
 
@@ -154,6 +281,67 @@ def _extract_coords_from_geometry(geom) -> List[Tuple[float, float]]:
             coords.extend(_extract_coords_from_geometry(g))
 
     return coords
+
+
+def interpolate_waypoints(
+    waypoints: List[Waypoint],
+    max_segment_distance_km: float = 0.1
+) -> List[Waypoint]:
+    """Interpolate waypoints to make the route smoother.
+
+    Adds intermediate points between waypoints that are far apart,
+    so the route doesn't appear as straight lines on the map.
+
+    Args:
+        waypoints: Original waypoints
+        max_segment_distance_km: Maximum distance between consecutive points (default 100m)
+
+    Returns:
+        Interpolated waypoints with more points
+    """
+    if len(waypoints) < 2:
+        return waypoints
+
+    interpolated = []
+
+    for i, wp in enumerate(waypoints):
+        interpolated.append(wp)
+
+        if i < len(waypoints) - 1:
+            next_wp = waypoints[i + 1]
+
+            # Calculate distance to next waypoint
+            dist = geodesic(
+                (wp.lat, wp.lon),
+                (next_wp.lat, next_wp.lon)
+            ).kilometers
+
+            # Add intermediate points if distance > threshold
+            if dist > max_segment_distance_km:
+                num_points = int(dist / max_segment_distance_km)
+
+                for j in range(1, num_points):
+                    # Linear interpolation
+                    t = j / num_points
+
+                    new_lat = wp.lat + t * (next_wp.lat - wp.lat)
+                    new_lon = wp.lon + t * (next_wp.lon - wp.lon)
+
+                    # Interpolate elevation
+                    if wp.elevation is not None and next_wp.elevation is not None:
+                        new_elev = wp.elevation + t * (next_wp.elevation - wp.elevation)
+                    else:
+                        new_elev = None
+
+                    interpolated.append(Waypoint(
+                        lat=new_lat,
+                        lon=new_lon,
+                        elevation=new_elev,
+                        name=""
+                    ))
+
+    # Recalculate distances
+    return _calculate_distances(interpolated)
 
 
 def _calculate_distances(points: List[Waypoint]) -> List[Waypoint]:

@@ -18,9 +18,13 @@ _routes_store: dict = {}
 @router.post("/upload", response_model=RouteUploadResponse)
 async def upload_route(file: UploadFile = File(...)):
     """Upload a GPX or KML route file"""
+    import sys
+    print(f"[UPLOAD] Received file: {file.filename}, content_type: {file.content_type}", file=sys.stderr)
+
     # Validate file extension
     filename = file.filename or "route"
     ext = Path(filename).suffix.lower()
+    print(f"[UPLOAD] File extension: {ext}", file=sys.stderr)
 
     if ext not in (".gpx", ".kml", ".kmz"):
         raise HTTPException(
@@ -33,7 +37,7 @@ async def upload_route(file: UploadFile = File(...)):
 
     # Parse route
     try:
-        from ...core.route import parse_gpx, parse_kml, detect_format
+        from ...core.route import parse_gpx, parse_kml
 
         # Save to temp file for parsing
         with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
@@ -61,7 +65,9 @@ async def upload_route(file: UploadFile = File(...)):
     # Store route
     _routes_store[route_id] = route_info
 
-    # Build response
+    # Build response - limit waypoints for display (keep original in store)
+    display_waypoints = _sample_waypoints_for_display(route_info.waypoints, max_points=200)
+
     waypoints = [
         WaypointModel(
             lat=wp.lat,
@@ -70,7 +76,7 @@ async def upload_route(file: UploadFile = File(...)):
             name=wp.name,
             elevation=wp.elevation
         )
-        for wp in route_info.waypoints
+        for wp in display_waypoints
     ]
 
     return RouteUploadResponse(
@@ -89,6 +95,10 @@ async def get_route(route_id: str):
         raise HTTPException(status_code=404, detail="Route not found")
 
     route_info = _routes_store[route_id]
+
+    # Sample waypoints for display
+    display_waypoints = _sample_waypoints_for_display(route_info.waypoints, max_points=500)
+
     return {
         "route_id": route_id,
         "name": route_info.name,
@@ -100,7 +110,54 @@ async def get_route(route_id: str):
                 "distance_km": wp.distance_km,
                 "elevation": wp.elevation
             }
-            for wp in route_info.waypoints
+            for wp in display_waypoints
+        ]
+    }
+
+
+@router.post("/{route_id}/enhance")
+async def enhance_route(route_id: str, activity_type: str = "hiking"):
+    """Enhance route with real paths using OSRM routing.
+
+    This adds intermediate points following actual roads/trails between waypoints.
+    """
+    from ...core.route import enhance_route_with_osrm
+
+    if route_id not in _routes_store:
+        raise HTTPException(status_code=404, detail="Route not found")
+
+    route_info = _routes_store[route_id]
+    original_count = len(route_info.waypoints)
+
+    # Enhance route with OSRM
+    enhanced_waypoints = enhance_route_with_osrm(
+        route_info.waypoints,
+        activity_type=activity_type,
+        min_direct_distance_km=0.5,  # Route segments > 0.5km apart
+        max_direct_distance_km=50.0
+    )
+
+    # Update route in store
+    route_info.waypoints = enhanced_waypoints
+    route_info.total_distance_km = enhanced_waypoints[-1].distance_km if enhanced_waypoints else 0
+
+    # Sample for display
+    display_waypoints = _sample_waypoints_for_display(enhanced_waypoints, max_points=500)
+
+    return {
+        "route_id": route_id,
+        "name": route_info.name,
+        "total_distance_km": route_info.total_distance_km,
+        "original_waypoints": original_count,
+        "enhanced_waypoints": len(enhanced_waypoints),
+        "waypoints": [
+            {
+                "lat": wp.lat,
+                "lon": wp.lon,
+                "distance_km": wp.distance_km,
+                "elevation": wp.elevation
+            }
+            for wp in display_waypoints
         ]
     }
 
@@ -125,3 +182,26 @@ def _calculate_elevation_gain(waypoints) -> float:
 def get_route_from_store(route_id: str):
     """Get route from store (used by other modules)"""
     return _routes_store.get(route_id)
+
+
+def _sample_waypoints_for_display(waypoints, max_points=200):
+    """Sample waypoints for display to avoid too many points in browser."""
+    if len(waypoints) <= max_points:
+        return waypoints
+
+    # Calculate step to evenly sample
+    step = len(waypoints) / max_points
+    sampled = []
+
+    i = 0
+    while len(sampled) < max_points and i < len(waypoints):
+        idx = int(i)
+        if idx < len(waypoints):
+            sampled.append(waypoints[idx])
+        i += step
+
+    # Always include last point
+    if waypoints and sampled[-1] != waypoints[-1]:
+        sampled.append(waypoints[-1])
+
+    return sampled

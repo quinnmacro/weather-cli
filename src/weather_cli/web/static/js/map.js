@@ -1,5 +1,5 @@
 /**
- * MapLibre GL map initialization
+ * Map initialization - using Leaflet (works without WebGL)
  */
 
 let map = null;
@@ -10,124 +10,109 @@ let markersLayer = null;
  * Initialize the map with route
  */
 function initMap(waypoints) {
+    console.log('initMap called with', waypoints.length, 'waypoints');
+
     const mapContainer = document.getElementById('map');
-    if (!mapContainer) return;
-
-    // Calculate bounds
-    const lats = waypoints.map(wp => wp.lat);
-    const lons = waypoints.map(wp => wp.lon);
-    const center = [
-        (Math.min(...lons) + Math.max(...lons)) / 2,
-        (Math.min(...lats) + Math.max(...lats)) / 2
-    ];
-
-    // Initialize map if not exists
-    if (!map) {
-        map = new maplibregl.Map({
-            container: 'map',
-            style: 'https://demotiles.maplibre.org/style.json',
-            center: center,
-            zoom: 10
-        });
-
-        map.addControl(new maplibregl.NavigationControl(), 'top-right');
-    } else {
-        map.setCenter(center);
+    if (!mapContainer) {
+        console.error('Map container not found');
+        return;
     }
 
-    // Convert waypoints to GeoJSON
-    const geojson = {
-        type: 'FeatureCollection',
-        features: [{
-            type: 'Feature',
-            geometry: {
-                type: 'LineString',
-                coordinates: waypoints.map(wp => [wp.lon, wp.lat])
-            },
-            properties: {
-                name: 'Route'
-            }
-        }]
-    };
+    const lats = waypoints.map(wp => wp.lat);
+    const lons = waypoints.map(wp => wp.lon);
 
-    // Remove existing layers
-    if (map.getLayer('route')) map.removeLayer('route');
-    if (map.getSource('route')) map.removeSource('route');
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons);
+    const maxLon = Math.max(...lons);
 
-    // Add route source and layer
-    map.on('load', () => {
-        map.addSource('route', {
-            type: 'geojson',
-            data: geojson
-        });
+    const centerLat = (minLat + maxLat) / 2;
+    const centerLon = (minLon + maxLon) / 2;
 
-        map.addLayer({
-            id: 'route',
-            type: 'line',
-            source: 'route',
-            paint: {
-                'line-color': '#3b82f6',
-                'line-width': 4,
-                'line-opacity': 0.8
-            }
-        });
+    console.log('Center:', centerLat, centerLon);
 
-        // Fit bounds
-        const bounds = new maplibregl.LngLatBounds();
-        waypoints.forEach(wp => bounds.extend([wp.lon, wp.lat]));
-        map.fitBounds(bounds, { padding: 50 });
+    // Check if Leaflet is available
+    if (typeof L === 'undefined') {
+        console.error('Leaflet not loaded');
+        mapContainer.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;"><p>Map unavailable - Leaflet library not loaded</p></div>';
+        return;
+    }
 
-        // Add markers for start and end
-        if (waypoints.length > 0) {
-            // Start marker
-            new maplibregl.Marker({ color: '#10b981' })
-                .setLngLat([waypoints[0].lon, waypoints[0].lat])
-                .setPopup(new maplibregl.Popup().setText('Start'))
-                .addTo(map);
+    // Create map if not exists
+    if (!map) {
+        map = L.map('map').setView([centerLat, centerLon], 12);
 
-            // End marker
-            const last = waypoints[waypoints.length - 1];
-            new maplibregl.Marker({ color: '#ef4444' })
-                .setLngLat([last.lon, last.lat])
-                .setPopup(new maplibregl.Popup().setText('End'))
-                .addTo(map);
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Add scale control
+        L.control.scale({ metric: true, imperial: false }).addTo(map);
+    }
+
+    // Clear existing route and markers
+    if (routeLayer) {
+        map.removeLayer(routeLayer);
+    }
+    if (markersLayer) {
+        map.removeLayer(markersLayer);
+    }
+
+    // Create route line
+    const coords = waypoints.map(wp => [wp.lat, wp.lon]);
+    routeLayer = L.polyline(coords, {
+        color: '#3b82f6',
+        weight: 4,
+        opacity: 0.8
+    }).addTo(map);
+
+    // Fit bounds
+    map.fitBounds(routeLayer.getBounds(), { padding: [30, 30] });
+
+    // Create markers layer
+    markersLayer = L.layerGroup().addTo(map);
+
+    // Add start marker
+    const startIcon = L.divIcon({
+        className: 'custom-marker',
+        html: '<div style="background: #10b981; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">S</div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+    });
+    L.marker([waypoints[0].lat, waypoints[0].lon], { icon: startIcon })
+        .bindPopup('<b>Start</b><br>' + waypoints[0].lat.toFixed(4) + ', ' + waypoints[0].lon.toFixed(4))
+        .addTo(markersLayer);
+
+    // Add end marker
+    const last = waypoints[waypoints.length - 1];
+    const endIcon = L.divIcon({
+        className: 'custom-marker',
+        html: '<div style="background: #ef4444; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);">E</div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14]
+    });
+    L.marker([last.lat, last.lon], { icon: endIcon })
+        .bindPopup('<b>End</b><br>' + last.lat.toFixed(4) + ', ' + last.lon.toFixed(4))
+        .addTo(markersLayer);
+
+    // Add intermediate waypoint markers (every 5th point)
+    waypoints.forEach((wp, i) => {
+        if (i > 0 && i < waypoints.length - 1 && i % 5 === 0) {
+            L.circleMarker([wp.lat, wp.lon], {
+                radius: 5,
+                fillColor: '#f59e0b',
+                color: 'white',
+                weight: 2,
+                fillOpacity: 0.9
+            })
+            .bindPopup(wp.distance_km.toFixed(1) + ' km')
+            .addTo(markersLayer);
         }
     });
-}
 
-/**
- * Add waypoint markers to map
- */
-function addWaypointMarkers(waypoints, weatherData) {
-    if (!map) return;
-
-    // Remove existing waypoint markers
-    document.querySelectorAll('.waypoint-marker').forEach(el => el.remove());
-
-    waypoints.forEach((wp, i) => {
-        if (i === 0 || i === waypoints.length - 1) return; // Skip start/end
-
-        const weather = weatherData[i];
-        if (!weather) return;
-
-        // Create custom marker element
-        const el = document.createElement('div');
-        el.className = 'waypoint-marker';
-        el.innerHTML = `
-            <div class="bg-white rounded-full p-1 shadow-md text-xs">
-                ${getWeatherEmoji(weather.weather_code)}
-            </div>
-        `;
-
-        new maplibregl.Marker(el)
-            .setLngLat([wp.lon, wp.lat])
-            .setPopup(new maplibregl.Popup().setHTML(`
-                <strong>${wp.distance_km.toFixed(0)} km</strong><br>
-                Temp: ${weather.temp?.toFixed(0) || '--'}°C<br>
-                Precip: ${weather.precipitation?.toFixed(1) || 0} mm
-            `))
-            .addTo(map);
-    });
+    console.log('Map initialized successfully');
 }
 
 function getWeatherEmoji(code) {

@@ -113,6 +113,18 @@ async def analyze_route(request: RouteAnalysisRequest):
             _calculate_heading(sampled, i)
         )
 
+        # Check daylight
+        daylight = _is_daylight(eta, weather.get("sunrise"), weather.get("sunset"))
+
+        # Generate clothing advice
+        clothing_advice = _get_clothing_advice(
+            weather.get("temp"),
+            weather.get("feels_like"),
+            weather.get("uv_index"),
+            weather.get("precipitation", 0),
+            weather.get("wind_speed", 0)
+        )
+
         wp_weather = WaypointWeather(
             waypoint={
                 "lat": wp.lat,
@@ -125,13 +137,22 @@ async def analyze_route(request: RouteAnalysisRequest):
             weather=WeatherPoint(
                 datetime=eta.strftime("%Y-%m-%d %H:%M"),
                 temp=weather.get("temp"),
+                feels_like=weather.get("feels_like") or weather.get("temp"),
                 precipitation=weather.get("precipitation", 0),
                 wind_speed=weather.get("wind_speed", 0),
                 wind_direction=weather.get("wind_direction", 0),
                 weather_code=weather.get("weather_code", 0),
+                uv_index=weather.get("uv_index"),
+                uv_index_max=weather.get("uv_index_max"),
+                cloud_cover=weather.get("cloud_cover"),
+                visibility=weather.get("visibility"),
+                sunrise=weather.get("sunrise"),
+                sunset=weather.get("sunset"),
             ),
             score=score_result["total"],
-            wind_type=wind_type
+            wind_type=wind_type,
+            daylight=daylight,
+            clothing_advice=clothing_advice
         )
         waypoint_weathers.append(wp_weather)
         total_score += score_result["total"]
@@ -235,3 +256,71 @@ def _calculate_heading(waypoints, index: int) -> int:
     bearing = math.atan2(x, y)
     bearing = math.degrees(bearing)
     return int((bearing + 360) % 360)
+
+
+def _is_daylight(eta: datetime, sunrise: str = None, sunset: str = None) -> bool:
+    """Check if the time is during daylight"""
+    if not sunrise or not sunset:
+        return True  # Assume daylight if no data
+
+    try:
+        # Parse sunrise/sunset (format: "2024-01-15T06:30")
+        sunrise_time = datetime.fromisoformat(sunrise.replace("Z", "+00:00").replace("+00:00", ""))
+        sunset_time = datetime.fromisoformat(sunset.replace("Z", "+00:00").replace("+00:00", ""))
+
+        # Make eta timezone-naive for comparison
+        eta_naive = eta.replace(tzinfo=None) if eta.tzinfo else eta
+
+        return sunrise_time <= eta_naive <= sunset_time
+    except:
+        return True
+
+
+def _get_clothing_advice(
+    temp: float = None,
+    feels_like: float = None,
+    uv_index: float = None,
+    precipitation: float = 0,
+    wind_speed: float = 0
+) -> str:
+    """Generate clothing advice based on weather conditions"""
+    advice = []
+
+    effective_temp = feels_like or temp or 20
+
+    # Temperature advice
+    if effective_temp < 5:
+        advice.append("🧥 Heavy jacket")
+    elif effective_temp < 10:
+        advice.append("🧥 Warm jacket")
+    elif effective_temp < 15:
+        advice.append("🧥 Light jacket")
+    elif effective_temp < 20:
+        advice.append("👕 Long sleeves")
+    elif effective_temp < 25:
+        advice.append("👕 T-shirt")
+    else:
+        advice.append("🩳 Light clothing")
+
+    # Rain advice
+    if precipitation > 5:
+        advice.append("🌧️ Rain gear essential")
+    elif precipitation > 0.5:
+        advice.append("🌂 Bring umbrella")
+
+    # Wind advice
+    if wind_speed > 30:
+        advice.append("💨 Windbreaker needed")
+    elif wind_speed > 15:
+        advice.append("💨 Light wind protection")
+
+    # UV advice
+    if uv_index:
+        if uv_index >= 8:
+            advice.append("🧴 High SPF sunscreen")
+        elif uv_index >= 5:
+            advice.append("🧴 Sunscreen recommended")
+        elif uv_index >= 3:
+            advice.append("🕶️ Sunglasses helpful")
+
+    return " | ".join(advice) if advice else "Comfortable conditions"

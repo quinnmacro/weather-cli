@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Basic Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .box { padding: 20px; margin: 10px 0; border: 2px solid #ccc; }
+        .red { background: #fee; border-color: #f00; }
+        .green { background: #efe; border-color: #0f0; }
+    </style>
+</head>
+<body>
+    <h1>JavaScript Basic Test</h1>
+
+    <div class="box" id="jsTest">
+        JavaScript is DISABLED
+    </div>
+
+    <button onclick="alert('Button clicked!')">Click Me (Alert)</button>
+
+    <br><br>
+
+    <input type="file" id="fileInput" accept=".gpx,.kml">
+    <div class="box" id="fileTest">No file selected</div>
+
+    <script>
+        document.getElementById('jsTest').className = 'box green';
+        document.getElementById('jsTest').textContent = 'JavaScript is ENABLED';
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                document.getElementById('fileTest').textContent =
+                    'File selected: ' + file.name + '\nSize: ' + file.size + ' bytes';
+                document.getElementById('fileTest').className = 'box green';
+            } else {
+                document.getElementById('fileTest').textContent = 'No file selected';
+                document.getElementById('fileTest').className = 'box red';
+            }
+        });
+    </script>
+</body>
+</html>

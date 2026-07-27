@@ -283,7 +283,8 @@ class OpenMeteoClient(BaseAPIClient):
         params = {
             "latitude": lats,
             "longitude": lons,
-            "hourly": "temperature_2m,precipitation,weather_code,wind_speed_10m",
+            "hourly": "temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,uv_index,cloud_cover,visibility",
+            "daily": "sunrise,sunset,uv_index_max",
             "timezone": timezone,
             "forecast_days": min(7, (hours // 24) + 1),
         }
@@ -296,19 +297,48 @@ class OpenMeteoClient(BaseAPIClient):
 
         forecasts = []
 
-        for result in results:
+        for idx, result in enumerate(results):
             hourly = result.get("hourly", {})
+            daily = result.get("daily", {})
             times = hourly.get("time", [])
             point_forecast = []
 
+            # Get sunrise/sunset for this location
+            sunrise_list = daily.get("sunrise", [])
+            sunset_list = daily.get("sunset", [])
+
             for i, time_str in enumerate(times[:hours]):
-                point_forecast.append({
+                forecast_point = {
                     "datetime": time_str,
                     "temp": hourly.get("temperature_2m", [None])[i],
+                    "feels_like": hourly.get("apparent_temperature", [None])[i],
                     "precipitation": hourly.get("precipitation", [None])[i],
                     "weather_code": hourly.get("weather_code", [0])[i],
                     "wind_speed": hourly.get("wind_speed_10m", [None])[i],
-                })
+                    "wind_direction": hourly.get("wind_direction_10m", [None])[i],
+                    "uv_index": hourly.get("uv_index", [None])[i],
+                    "cloud_cover": hourly.get("cloud_cover", [None])[i],
+                    "visibility": hourly.get("visibility", [None])[i],
+                }
+
+                # Add sunrise/sunset for the day
+                date_str = time_str.split("T")[0]
+                for j, sunrise in enumerate(sunrise_list):
+                    if sunrise and sunrise.startswith(date_str):
+                        forecast_point["sunrise"] = sunrise
+                        forecast_point["sunset"] = sunset_list[j] if j < len(sunset_list) else None
+                        break
+
+                point_forecast.append(forecast_point)
+
+            # Add daily UV max
+            if daily.get("uv_index_max"):
+                for i, point in enumerate(point_forecast):
+                    date_str = point["datetime"].split("T")[0]
+                    for j, d in enumerate(daily.get("time", [])):
+                        if d == date_str and j < len(daily["uv_index_max"]):
+                            point["uv_index_max"] = daily["uv_index_max"][j]
+                            break
 
             forecasts.append(point_forecast)
 

@@ -53,6 +53,13 @@ class WeatherPoint(BaseModel):
     wind_gust: float = 0.0
     weather_code: int = 0
     humidity: float = 0.0
+    # New fields
+    uv_index: Optional[float] = None
+    uv_index_max: Optional[float] = None
+    cloud_cover: Optional[float] = None  # Percentage 0-100
+    visibility: Optional[float] = None  # In meters
+    sunrise: Optional[str] = None
+    sunset: Optional[str] = None
 
 
 class WaypointWeather(BaseModel):
@@ -62,6 +69,8 @@ class WaypointWeather(BaseModel):
     weather: WeatherPoint
     score: int = 0
     wind_type: str = ""  # headwind, tailwind, crosswind
+    daylight: bool = True  # Is this point during daylight?
+    clothing_advice: Optional[str] = None  # Clothing recommendation
 
 
 class RouteAnalysisResponse(BaseModel):

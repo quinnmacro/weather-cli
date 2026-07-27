@@ -8,29 +8,28 @@
     <div class="bg-white rounded-xl shadow-md p-6">
         <h2 class="text-xl font-bold mb-4">📤 Upload Route</h2>
         <div class="flex items-center space-x-4">
-            <label class="flex-1">
+            <div class="flex-1">
+                <input type="file" accept=".gpx,.kml" id="fileInput" style="display:none">
                 <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-500 transition-colors"
-                     id="dropZone">
-                    <input type="file" accept=".gpx,.kml" class="hidden" id="fileInput"
-                           onchange="handleFileSelect(event)">
+                     id="dropZone" onclick="document.getElementById('fileInput').click()">
                     <p class="text-gray-600">Drop GPX/KML file here or click to browse</p>
                     <p class="text-sm text-gray-400 mt-1">Supports: .gpx, .kml</p>
                 </div>
-            </label>
+            </div>
             <div class="w-48 space-y-3">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Speed (km/h)</label>
-                    <input type="number" id="speedInput" value="15" min="1" max="50"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                </div>
-                <div>
                     <label class="block text-sm font-medium text-gray-700">Activity</label>
-                    <select id="activitySelect"
+                    <select id="activitySelect" onchange="updateSpeedFromActivity()"
                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                         <option value="cycling">🚴 Cycling</option>
                         <option value="hiking">🥾 Hiking</option>
                         <option value="running">🏃 Running</option>
                     </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Speed (km/h)</label>
+                    <input type="number" id="speedInput" value="15" min="1" max="50"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
                 </div>
                 <button onclick="analyzeRoute()"
                         id="analyzeBtn"
@@ -66,13 +65,15 @@
             <!-- Map -->
             <div class="bg-white rounded-xl shadow-md p-4">
                 <h3 class="font-semibold mb-2">🗺️ Route Map</h3>
-                <div id="map" class="h-80 rounded-lg"></div>
+                <div id="map" style="height: 320px; border-radius: 8px; background: #e5e7eb;"></div>
             </div>
 
             <!-- Elevation Profile -->
             <div class="bg-white rounded-xl shadow-md p-4">
                 <h3 class="font-semibold mb-2">⛰️ Elevation Profile</h3>
-                <canvas id="elevationChart" class="h-80"></canvas>
+                <div style="height: 320px;">
+                    <canvas id="elevationChart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -81,13 +82,87 @@
             <!-- Temperature -->
             <div class="bg-white rounded-xl shadow-md p-4">
                 <h3 class="font-semibold mb-2">🌡️ Temperature</h3>
-                <canvas id="tempChart" class="h-64"></canvas>
+                <div style="height: 256px;">
+                    <canvas id="tempChart"></canvas>
+                </div>
             </div>
 
             <!-- Precipitation -->
             <div class="bg-white rounded-xl shadow-md p-4">
                 <h3 class="font-semibold mb-2">🌧️ Precipitation</h3>
-                <canvas id="precipChart" class="h-64"></canvas>
+                <div style="height: 256px;">
+                    <canvas id="precipChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sun & UV Info -->
+        <div class="grid lg:grid-cols-3 gap-6">
+            <!-- Sunrise/Sunset -->
+            <div class="bg-white rounded-xl shadow-md p-4">
+                <h3 class="font-semibold mb-2">🌅 Daylight</h3>
+                <div class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Sunrise</span>
+                        <span id="sunriseTime" class="font-bold text-orange-500">--:--</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Sunset</span>
+                        <span id="sunsetTime" class="font-bold text-purple-500">--:--</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Daylight</span>
+                        <span id="daylightHours" class="font-bold">-- h</span>
+                    </div>
+                    <div class="mt-2 pt-2 border-t">
+                        <div id="daylightBar" class="h-4 rounded-full bg-gradient-to-r from-orange-300 via-yellow-200 to-purple-400 relative">
+                            <div id="currentTimeMarker" class="absolute w-1 h-4 bg-red-500 rounded" style="left: 50%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- UV Index -->
+            <div class="bg-white rounded-xl shadow-md p-4">
+                <h3 class="font-semibold mb-2">☀️ UV Index</h3>
+                <div class="text-center">
+                    <div id="uvIndex" class="text-4xl font-bold text-green-500">--</div>
+                    <p id="uvLevel" class="text-sm text-gray-500">--</p>
+                    <div class="mt-3 grid grid-cols-5 gap-1 text-xs">
+                        <div class="bg-green-200 p-1 rounded text-center">Low</div>
+                        <div class="bg-yellow-200 p-1 rounded text-center">Mod</div>
+                        <div class="bg-orange-200 p-1 rounded text-center">High</div>
+                        <div class="bg-red-200 p-1 rounded text-center">V.High</div>
+                        <div class="bg-purple-200 p-1 rounded text-center">Extreme</div>
+                    </div>
+                    <p id="uvAdvice" class="text-xs text-gray-500 mt-2">--</p>
+                </div>
+            </div>
+
+            <!-- Visibility & Cloud -->
+            <div class="bg-white rounded-xl shadow-md p-4">
+                <h3 class="font-semibold mb-2">👁️ Visibility</h3>
+                <div class="space-y-3">
+                    <div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600">Visibility</span>
+                            <span id="visibility" class="font-bold">-- km</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
+                            <div id="visibilityBar" class="bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600">Cloud Cover</span>
+                            <span id="cloudCover" class="font-bold">--%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2 mt-1">
+                            <div id="cloudBar" class="bg-gray-400 h-2 rounded-full" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <p id="visibilityNote" class="text-xs text-gray-500">--</p>
+                </div>
             </div>
         </div>
 
@@ -98,12 +173,12 @@
                 <h3 class="font-semibold mb-2">💨 Wind Analysis</h3>
                 <div class="flex items-center justify-around">
                     <div class="text-center">
-                        <div class="wind-compass mx-auto mb-2" id="windCompass">
-                            <div class="wind-arrow" id="windArrow">↑</div>
-                            <div class="absolute top-1 left-1/2 -translate-x-1/2 text-xs font-bold">N</div>
-                            <div class="absolute bottom-1 left-1/2 -translate-x-1/2 text-xs">S</div>
-                            <div class="absolute left-1 top-1/2 -translate-y-1/2 text-xs">W</div>
-                            <div class="absolute right-1 top-1/2 -translate-y-1/2 text-xs">E</div>
+                        <div class="wind-compass mx-auto mb-2" id="windCompass" style="position: relative; width: 120px; height: 120px; border-radius: 50%; background: conic-gradient(from 0deg, #e5e7eb, #9ca3af, #e5e7eb);">
+                            <div class="wind-arrow" id="windArrow" style="position: absolute; top: 50%; left: 50%; transform-origin: center bottom;">↑</div>
+                            <div style="position: absolute; top: 4px; left: 50%; transform: translateX(-50%); font-size: 12px; font-weight: bold;">N</div>
+                            <div style="position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%); font-size: 12px;">S</div>
+                            <div style="position: absolute; left: 4px; top: 50%; transform: translateY(-50%); font-size: 12px;">W</div>
+                            <div style="position: absolute; right: 4px; top: 50%; transform: translateY(-50%); font-size: 12px;">E</div>
                         </div>
                         <p id="windType" class="text-sm text-gray-600">--</p>
                     </div>
@@ -176,25 +251,56 @@
     <!-- Loading Indicator -->
     <div id="loadingIndicator" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
         <div class="bg-white rounded-xl p-8 text-center">
-            <div class="loading-spinner mx-auto mb-4"></div>
+            <div class="loading-spinner mx-auto mb-4" style="border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite;"></div>
             <p class="text-gray-600">Analyzing route...</p>
         </div>
     </div>
 </div>
+
+<style>
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
 {% endblock %}
 
 {% block scripts %}
 <script src="/static/js/charts.js"></script>
 <script src="/static/js/map.js"></script>
 <script>
+    console.log('Planner page loaded');
+
     let currentRouteId = null;
     let waypoints = [];
-    let map = null;
 
-    function handleFileSelect(event) {
+    // Default speeds for each activity (km/h)
+    const activitySpeeds = {
+        cycling: 15,
+        hiking: 4,
+        running: 8
+    };
+
+    function updateSpeedFromActivity() {
+        const activity = document.getElementById('activitySelect').value;
+        const speedInput = document.getElementById('speedInput');
+        speedInput.value = activitySpeeds[activity] || 15;
+    }
+
+    // File input handler
+    document.getElementById('fileInput').addEventListener('change', function(event) {
+        console.log('File input changed');
         const file = event.target.files[0];
-        if (!file) return;
+        if (!file) {
+            console.log('No file selected');
+            return;
+        }
 
+        console.log('Uploading file:', file.name);
+        uploadFile(file);
+    });
+
+    function uploadFile(file) {
         const formData = new FormData();
         formData.append('file', file);
 
@@ -204,8 +310,17 @@
             method: 'POST',
             body: formData
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                return response.json().then(err => {
+                    throw new Error(err.detail || 'Upload failed');
+                });
+            }
+            return response.json();
+        })
         .then(data => {
+            console.log('Upload successful:', data.name, data.total_distance_km, 'km');
             currentRouteId = data.route_id;
             waypoints = data.waypoints;
 
@@ -214,13 +329,34 @@
             document.getElementById('routeElevation').textContent = (data.elevation_gain_m || 0).toFixed(0);
             document.getElementById('analyzeBtn').disabled = false;
 
-            // Initialize map
-            initMap(data.waypoints);
+            // Show results section
+            document.getElementById('resultsSection').classList.remove('hidden');
 
-            // Draw elevation profile
-            drawElevationChart(data.waypoints);
+            // Try to init map (may fail if MapLibre not loaded)
+            if (typeof initMap === 'function') {
+                try {
+                    initMap(data.waypoints);
+                } catch(e) {
+                    console.error('Map error:', e);
+                    document.getElementById('map').innerHTML = '<p style="padding: 20px; text-align: center; color: #666;">Map unavailable (MapLibre GL not loaded)</p>';
+                }
+            } else {
+                document.getElementById('map').innerHTML = '<p style="padding: 20px; text-align: center; color: #666;">Map unavailable</p>';
+            }
+
+            // Try to draw elevation chart
+            if (typeof drawElevationChart === 'function') {
+                try {
+                    drawElevationChart(data.waypoints);
+                } catch(e) {
+                    console.error('Chart error:', e);
+                }
+            }
         })
-        .catch(err => alert('Upload failed: ' + err.message))
+        .catch(err => {
+            console.error('Upload error:', err);
+            alert('Upload failed: ' + err.message);
+        })
         .finally(() => {
             document.getElementById('loadingIndicator').classList.add('hidden');
         });
@@ -245,7 +381,6 @@
         })
         .then(response => response.json())
         .then(data => {
-            document.getElementById('resultsSection').classList.remove('hidden');
             document.getElementById('overallScore').textContent = data.overall_score;
             document.getElementById('overallScore').className = 'text-3xl font-bold ' + getScoreClass(data.overall_score);
 
@@ -264,13 +399,16 @@
             `).join('');
 
             // Draw charts
-            drawTempChart(data.waypoints);
-            drawPrecipChart(data.waypoints);
+            if (typeof drawTempChart === 'function') drawTempChart(data.waypoints);
+            if (typeof drawPrecipChart === 'function') drawPrecipChart(data.waypoints);
 
-            // Update wind display
+            // Update weather details from first waypoint
             if (data.waypoints.length > 0) {
                 const firstWp = data.waypoints[0];
                 updateWindDisplay(firstWp.weather.wind_direction, firstWp.weather.wind_speed, firstWp.wind_type);
+                updateSunInfo(firstWp.weather.sunrise, firstWp.weather.sunset, firstWp.eta);
+                updateUVIndex(firstWp.weather.uv_index_max || firstWp.weather.uv_index);
+                updateVisibility(firstWp.weather.visibility, firstWp.weather.cloud_cover);
             }
         })
         .catch(err => alert('Analysis failed: ' + err.message))
@@ -341,12 +479,106 @@
     }
 
     function updateWindDisplay(direction, speed, type) {
-        // Rotate wind arrow
         const arrow = document.getElementById('windArrow');
-        arrow.style.transform = `rotate(${direction}deg)`;
-
+        if (arrow) arrow.style.transform = `rotate(${direction}deg)`;
         document.getElementById('windSpeed').textContent = speed?.toFixed(0) || 0;
         document.getElementById('windType').textContent = type || '--';
+    }
+
+    function updateSunInfo(sunrise, sunset, currentTime) {
+        if (sunrise) {
+            const sunriseTime = sunrise.split('T')[1]?.substring(0, 5) || sunrise.substring(11, 16);
+            document.getElementById('sunriseTime').textContent = sunriseTime;
+        }
+        if (sunset) {
+            const sunsetTime = sunset.split('T')[1]?.substring(0, 5) || sunset.substring(11, 16);
+            document.getElementById('sunsetTime').textContent = sunsetTime;
+        }
+        if (sunrise && sunset) {
+            // Calculate daylight hours
+            const sunriseDate = new Date(sunrise);
+            const sunsetDate = new Date(sunset);
+            const daylightMinutes = (sunsetDate - sunriseDate) / 60000;
+            const hours = Math.floor(daylightMinutes / 60);
+            const mins = Math.round(daylightMinutes % 60);
+            document.getElementById('daylightHours').textContent = `${hours}h ${mins}m`;
+
+            // Update time marker position
+            if (currentTime) {
+                const current = new Date(currentTime);
+                const progress = (current - sunriseDate) / (sunsetDate - sunriseDate) * 100;
+                const marker = document.getElementById('currentTimeMarker');
+                if (marker && progress >= 0 && progress <= 100) {
+                    marker.style.left = progress + '%';
+                }
+            }
+        }
+    }
+
+    function updateUVIndex(uvIndex) {
+        const uvEl = document.getElementById('uvIndex');
+        const levelEl = document.getElementById('uvLevel');
+        const adviceEl = document.getElementById('uvAdvice');
+
+        if (uvIndex === null || uvIndex === undefined) {
+            uvEl.textContent = '--';
+            levelEl.textContent = 'No data';
+            adviceEl.textContent = '';
+            return;
+        }
+
+        uvEl.textContent = uvIndex.toFixed(1);
+
+        let level, color, advice;
+        if (uvIndex < 3) {
+            level = 'Low';
+            color = 'text-green-500';
+            advice = 'No protection needed';
+        } else if (uvIndex < 6) {
+            level = 'Moderate';
+            color = 'text-yellow-500';
+            advice = 'Sunscreen recommended';
+        } else if (uvIndex < 8) {
+            level = 'High';
+            color = 'text-orange-500';
+            advice = 'SPF 30+ sunscreen, seek shade';
+        } else if (uvIndex < 11) {
+            level = 'Very High';
+            color = 'text-red-500';
+            advice = 'SPF 50+, avoid midday sun';
+        } else {
+            level = 'Extreme';
+            color = 'text-purple-500';
+            advice = 'Stay indoors if possible';
+        }
+
+        uvEl.className = 'text-4xl font-bold ' + color;
+        levelEl.textContent = level;
+        adviceEl.textContent = advice;
+    }
+
+    function updateVisibility(visibility, cloudCover) {
+        // Visibility (convert from meters to km)
+        if (visibility !== null && visibility !== undefined) {
+            const visKm = visibility / 1000;
+            document.getElementById('visibility').textContent = visKm.toFixed(1) + ' km';
+            // Max visibility typically ~10km for very clear
+            const visPercent = Math.min(100, (visKm / 10) * 100);
+            document.getElementById('visibilityBar').style.width = visPercent + '%';
+
+            let note;
+            if (visKm < 1) note = 'Very poor visibility (fog?)';
+            else if (visKm < 4) note = 'Poor visibility';
+            else if (visKm < 10) note = 'Moderate visibility';
+            else note = 'Excellent visibility';
+            document.getElementById('visibilityNote').textContent = note;
+        }
+
+        // Cloud cover
+        if (cloudCover !== null && cloudCover !== undefined) {
+            document.getElementById('cloudCover').textContent = cloudCover.toFixed(0) + '%';
+            document.getElementById('cloudBar').style.width = cloudCover + '%';
+        }
     }
 
     // Drag and drop
@@ -356,8 +588,8 @@
     dropZone.addEventListener('drop', e => {
         e.preventDefault();
         dropZone.classList.remove('border-blue-500');
-        document.getElementById('fileInput').files = e.dataTransfer.files;
-        handleFileSelect({target: {files: e.dataTransfer.files}});
+        const file = e.dataTransfer.files[0];
+        if (file) uploadFile(file);
     });
 </script>
 {% endblock %}

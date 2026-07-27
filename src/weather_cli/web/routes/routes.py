@@ -39,3 +39,36 @@ async def compare(request: Request):
         "route/compare.html",
         {"title": "Compare Routes"}
     )
+
+
+@router.get("/test-upload", response_class=HTMLResponse)
+async def test_upload(request: Request):
+    """Test upload page for debugging"""
+    from ..app import templates
+    return templates.TemplateResponse(
+        request,
+        "route/test_upload.html",
+        {"title": "Upload Test"}
+    )
+
+
+@router.get("/test-basic", response_class=HTMLResponse)
+async def test_basic(request: Request):
+    """Basic JavaScript test"""
+    from ..app import templates
+    return templates.TemplateResponse(
+        request,
+        "route/test_basic.html",
+        {"title": "Basic Test"}
+    )
+
+
+@router.get("/test-fetch", response_class=HTMLResponse)
+async def test_fetch(request: Request):
+    """Fetch API test"""
+    from ..app import templates
+    return templates.TemplateResponse(
+        request,
+        "route/test_fetch.html",
+        {"title": "Fetch Test"}
+    )

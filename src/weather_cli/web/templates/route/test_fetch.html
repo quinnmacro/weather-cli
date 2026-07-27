@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Fetch Test</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .box { padding: 15px; margin: 10px 0; border: 2px solid #ccc; background: #f9f9f9; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+        input { font-size: 16px; }
+        pre { background: #333; color: #0f0; padding: 10px; overflow: auto; }
+    </style>
+</head>
+<body>
+    <h1>Fetch API Test</h1>
+
+    <input type="file" id="fileInput" accept=".gpx,.kml">
+    <button id="uploadBtn">Upload via Fetch</button>
+
+    <div class="box" id="status">Status: Waiting...</div>
+    <pre id="result"></pre>
+
+    <script>
+        const status = document.getElementById('status');
+        const result = document.getElementById('result');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                status.textContent = 'Status: File selected - ' + file.name;
+            }
+        });
+
+        uploadBtn.addEventListener('click', function() {
+            const file = fileInput.files[0];
+            if (!file) {
+                status.textContent = 'Status: ERROR - No file selected!';
+                return;
+            }
+
+            status.textContent = 'Status: Starting upload...';
+            result.textContent = '';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            status.textContent = 'Status: Calling fetch()...';
+
+            fetch('/api/routes/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                status.textContent = 'Status: Got response - ' + response.status + ' ' + response.statusText;
+                return response.text();
+            })
+            .then(text => {
+                status.textContent = 'Status: SUCCESS!';
+                try {
+                    const data = JSON.parse(text);
+                    result.textContent = JSON.stringify(data, null, 2);
+                } catch(e) {
+                    result.textContent = 'Response (not JSON):\n' + text;
+                }
+            })
+            .catch(err => {
+                status.textContent = 'Status: FETCH ERROR - ' + err.message;
+                result.textContent = err.stack || err.toString();
+            });
+        });
+    </script>
+</body>
+</html>

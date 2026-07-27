@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Test</title>
+</head>
+<body>
+    <h1>KML Upload Test</h1>
+
+    <input type="file" id="fileInput" accept=".gpx,.kml">
+    <button id="uploadBtn">Upload</button>
+
+    <div id="result" style="margin-top: 20px; white-space: pre-wrap; font-family: monospace;"></div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const result = document.getElementById('result');
+
+        fileInput.addEventListener('change', function(e) {
+            result.textContent = 'File selected: ' + (e.target.files[0]?.name || 'none');
+        });
+
+        uploadBtn.addEventListener('click', function() {
+            const file = fileInput.files[0];
+            if (!file) {
+                result.textContent = 'ERROR: No file selected!';
+                return;
+            }
+
+            result.textContent = 'Uploading ' + file.name + ' (' + file.size + ' bytes)...';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/api/routes/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                result.textContent += '\nResponse status: ' + response.status;
+                return response.json();
+            })
+            .then(data => {
+                result.textContent += '\n\nSUCCESS!\n';
+                result.textContent += 'Route: ' + data.name + '\n';
+                result.textContent += 'Distance: ' + data.total_distance_km.toFixed(1) + ' km\n';
+                result.textContent += 'Waypoints: ' + data.waypoints.length + '\n';
+                result.textContent += 'Elevation gain: ' + (data.elevation_gain_m || 0).toFixed(0) + ' m';
+            })
+            .catch(err => {
+                result.textContent += '\n\nERROR: ' + err.message;
+            });
+        });
+    </script>
+</body>
+</html>

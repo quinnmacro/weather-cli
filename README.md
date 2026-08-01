@@ -1,5 +1,7 @@
 # Weather CLI Pro
 
+> 专业命令行天气应用，支持多数据源与气象分析
+
 A professional command-line weather application with real data sources and advanced meteorological analysis.
 
 ## Features
@@ -122,3 +124,7 @@ ruff check src tests
 ## License
 
 MIT
+
+---
+
+<sub>Last updated: 2026-08-01 · Status: 🟡 Maintenance</sub>
